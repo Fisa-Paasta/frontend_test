@@ -1,8 +1,8 @@
+// InitPage.tsx
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Lock, User, Building2, Sparkles } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext'; // useAuth를 가져옵니다.
 
 const slogans: React.ReactElement[] = [
   <>빠르게 시작하는 <strong className="text-white">PaaS 환경</strong></>,
@@ -18,7 +18,10 @@ const slogans: React.ReactElement[] = [
 type FormField = 'id' | 'password' | 'department';
 
 export default function InitPage() {
-  const navigate = useNavigate();
+  // useNavigate는 AuthContext에서 사용하므로 여기서는 필요 없습니다.
+  // const navigate = useNavigate(); 
+  const { login } = useAuth(); // useAuth에서 login 함수를 가져옵니다.
+
   const [form, setForm] = useState<Record<FormField, string>>({
     id: '',
     password: '',
@@ -36,18 +39,24 @@ export default function InitPage() {
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<FormField, string>> = {};
+  
+    // 사번 유효성 검사
     if (!form.id.trim()) newErrors.id = '사번을 입력해주세요.';
     else if (!/^\d{8}$/.test(form.id)) newErrors.id = '사번은 8자리 숫자여야 합니다.';
-
+  
+    // 비밀번호 유효성 검사
     if (!form.password.trim()) newErrors.password = '비밀번호를 입력해주세요.';
-    else if (!/^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*]).{7,}$/.test(form.password))
+    else if (!/^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*]).{7,}$/.test(form.password)) {
       newErrors.password = '비밀번호는 영문 + 숫자 + 특수문자를 포함해 7자 이상이어야 합니다.';
-
+    }
+  
+    // 부서 유효성 검사
     if (!form.department.trim()) newErrors.department = '부서를 선택해주세요.';
-
+  
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+  
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -55,132 +64,19 @@ export default function InitPage() {
     setErrors((prev) => ({ ...prev, [name as FormField]: '' }));
   };
 
-  const { setUser } = useAuth();
-  
-  // 부서별 권한 검증 함수
-  const validateDepartmentAccess = (employeeId: string, department: string): { isValid: boolean; role: 'admin' | 'user' | null } => {
-    const isITInfraDept = department === '은행-IT인프라팀';
-    
-    // 임시 관리자 계정 (12345678)
-    if (employeeId === '12345678') {
-      if (isITInfraDept) {
-        return { isValid: true, role: 'admin' };
-      } else {
-        return { isValid: false, role: null };
-      }
-    }
-    
-    // 임시 사용자 계정 (99991234)
-    if (employeeId === '99991234') {
-      if (isITInfraDept) {
-        return { isValid: false, role: null };
-      } else {
-        return { isValid: true, role: 'user' };
-      }
-    }
-    
-    // 기타 계정들은 백엔드에서 처리
-    return { isValid: true, role: null };
-  };
-
+  // AuthContext에서 로그인 로직을 처리하므로,
+  // InitPage에서는 validateForm 후에 login 함수를 호출하기만 합니다.
   const handleLogin = async () => {
     if (!validateForm()) return;
     
-    // 부서 권한 검증
-    const accessCheck = validateDepartmentAccess(form.id, form.department);
-    
-    if (!accessCheck.isValid) {
-      alert('❌ 권한이 없습니다.');
+    // AuthContext의 login 함수를 호출
+    const success = await login(form.id, form.password, form.department);
 
-      // 로그인 실패 시 비밀번호 필드 초기화
-      setForm(prev => ({ ...prev, password: '' }));
-      return;
-    }
-  
-    const isTempUserLogin =
-      form.id === '99991234' &&
-      form.password === 'user123!' &&
-      accessCheck.role === 'user';
-  
-    const isTempAdminLogin =
-      form.id === '12345678' &&
-      form.password === 'VMware1!' &&
-      accessCheck.role === 'admin';
-  
-    // ✅ 1. 임시 사용자 로그인 처리
-    if (isTempUserLogin) {
-      localStorage.setItem('token', 'test-user-token');
-      localStorage.setItem('userName', '임시 사용자');
-      localStorage.setItem('userId', form.id);
-      localStorage.setItem('role', 'user');
-    
-      setUser({
-        userId: form.id,
-        userName: '임시 사용자',
-        role: 'user',
-      });
-    
-      navigate('/home');
-      return;
-    }
-  
-    // ✅ 2. 임시 관리자 로그인 처리
-    if (isTempAdminLogin) {
-      localStorage.setItem('token', 'test-admin-token');
-      localStorage.setItem('userName', '테스트 관리자');
-      localStorage.setItem('userId', form.id);
-      localStorage.setItem('role', 'admin');
-
-      setUser({
-        userId: form.id,
-        userName: '테스트 관리자',
-        role: 'admin',
-      });
-
-      navigate('/admin');
-      return;
-    }
-
-    // ✅ 3. 실제 API 요청 처리 - 예외 처리 개선
-    try {
-      const res = await fetch('http://localhost:8080/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-
-      if (!res.ok) {
-        // ✅ SonarQube 이슈 수정: || 대신 ?? 사용
-        const errorData = await res.json().catch(() => ({ message: '로그인 실패' }));
-        throw new Error(errorData.message ?? '로그인 실패');
-      }
-
-      const data = await res.json();
-
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userName', data.name);
-      localStorage.setItem('userId', form.id);
-      localStorage.setItem('role', data.role);
-
-      setUser({
-        userId: form.id,
-        userName: data.name,
-        role: data.role,
-      });
-
-      navigate(data.role === 'admin' ? '/admin' : '/home');
-    } catch (error) {
-      // ✅ 예외를 적절히 처리
-      console.error('로그인 오류:', error);
-      
-      // 구체적인 오류 메시지 표시
-      if (error instanceof Error) {
-        alert('❌ 권한이 없습니다.');
-      }
-      
-      // 로그인 실패 시 비밀번호 필드 초기화
+    // 로그인 실패 시 비밀번호 필드 초기화 (AuthContext에서 알림창을 띄우므로 여기서는 알림창X)
+    if (!success) {
       setForm(prev => ({ ...prev, password: '' }));
     }
+    // 성공 시 navigate는 AuthContext에서 이미 처리됩니다.
   };
 
   return (

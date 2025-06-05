@@ -1,10 +1,15 @@
 import { useSurvey } from '@/context/SurveyContext';
 import { FileText } from 'lucide-react';
 import { useEffect } from 'react';
+import React from 'react'
 
 interface Props {
   onClose: () => void;
   onSubmit: () => void;
+  isOpen: boolean;
+  title: string;
+  message: string;
+  icon: 'info' | 'success' | 'warning' | 'error'; // 아이콘 타입을 지정
 }
 
 const formatName = (key?: string) => {
@@ -41,8 +46,11 @@ const KeyGroup = ({ children, title }: { children: React.ReactNode; title?: stri
   </div>
 );
 
-export default function InformationModal({ onClose, onSubmit }: Props) {
+export default function InformationModal({ onClose, onSubmit, isOpen, title, message, icon }: Props) {
   const { formData } = useSurvey();
+
+  // isOpen이 false일 경우 모달을 렌더링하지 않음
+  if (!isOpen) return null;
 
   useEffect(() => {
     const handleEscapeKey = (e: KeyboardEvent) => {
