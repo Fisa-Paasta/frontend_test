@@ -1,5 +1,7 @@
+import React from 'react';
 import { useSurvey } from '@/context/SurveyContext';
 import { useState, useEffect } from 'react';
+import { K8sConfig, ResourcesConfig, VMConfig } from '@/types/survey'; // 필요한 타입 import
 
 // 타입 정의
 interface ResourceErrors {
@@ -23,25 +25,34 @@ interface LocalVM {
 }
 
 // ✅ 강화된 입력 검증 함수
-const validateAndSanitizeInput = (value: string): { isValid: boolean; sanitizedValue: string } => {
-  // 빈 문자열은 허용
+const validateAndSanitizeInput = (value: string): { isValid: boolean; sanitizedValue: string; hasParseError: boolean } => {
+  // 빈 문자열은 허용 (즉, 아직 아무것도 입력하지 않았거나, 유효하지 않은 값을 지웠을 때)
   if (value === '') {
-    return { isValid: true, sanitizedValue: '' };
+    return { isValid: true, sanitizedValue: '', hasParseError: false };
   }
   
   // 숫자가 아닌 문자 제거
   const numericOnly = value.replace(/\D/g, '');
   
+  // 숫자가 전혀 없는 문자열 (예: "abc", "xyz")이 입력된 경우
   if (numericOnly === '') {
-    return { isValid: false, sanitizedValue: '' };
+    // 이때는 빈 문자열로 정제하되, 파싱 에러가 있다고 알림
+    return { isValid: false, sanitizedValue: '', hasParseError: true }; 
   }
   
   const numValue = parseInt(numericOnly, 10);
+  
+  // 유효성 검사: 숫자로 변환 가능하고 1 이상인지
   const isValid = !isNaN(numValue) && numValue > 0;
   
   return { 
     isValid, 
-    sanitizedValue: isValid ? numericOnly : '' 
+    // 숫자로만 구성되어 있으면 그 값을 유지
+    // 유효성(isValid)과 관계없이 사용자에게 보여줄 '정제된' 값은 numericOnly
+    sanitizedValue: numericOnly, 
+    // hasParseError는 !isValid와 동일하게 유지.
+    // 즉, 0이나 음수도 hasParseError가 true가 되어 에러 메시지가 표시됨
+    hasParseError: !isValid 
   };
 };
 
@@ -76,7 +87,7 @@ const NumberInput = ({
   label, 
   value, 
   onChange, 
-  onPaste,
+  onPaste, // onPaste prop은 그대로 유지
   placeholder, 
   hasError, 
   errorMessage 
@@ -84,6 +95,7 @@ const NumberInput = ({
   id: string;
   label: string;
   value: string;
+  // onChange prop의 타입 변경: 이제 sanitizedValue만 받도록 함 (내부에서 validate를 수행하지 않음)
   onChange: (value: string) => void;
   onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   placeholder: string;
@@ -98,6 +110,7 @@ const NumberInput = ({
       inputMode="numeric"
       pattern="[0-9]*"
       value={value}
+      // NumberInput의 onChange는 이제 NumberInput을 사용하는 부모 컴포넌트의 래퍼 함수를 호출합니다.
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={handleKeyDown}
       onPaste={onPaste}
@@ -146,11 +159,12 @@ const SelectField = ({
 const EKSResourceFields = ({ 
   localVM, 
   errors, 
-  handleVmChange,
+  handleVmChange, // handleVmChange는 이제 래퍼 함수 (onVmChange)로 대체될 예정
   handlePaste
 }: {
   localVM: LocalVM;
   errors: ResourceErrors;
+  // handleVmChange의 타입 변경: 래퍼 함수를 받도록 (value만)
   handleVmChange: (field: keyof LocalVM, value: string) => void;
   handlePaste: (e: React.ClipboardEvent<HTMLInputElement>, field: string) => void;
 }) => {
@@ -179,7 +193,7 @@ const EKSResourceFields = ({
         id="ec2-instance-select"
         label="EC2 인스턴스 타입"
         value={localVM.ec2Type}
-        onChange={(value) => handleVmChange('ec2Type', value)}
+        onChange={(value) => handleVmChange('ec2Type', value)} // onVmChange가 전달됨
         options={ec2Options}
       />
 
@@ -187,7 +201,7 @@ const EKSResourceFields = ({
         id="ebs-volume-select"
         label="EBS 볼륨 타입"
         value={localVM.ebsType}
-        onChange={(value) => handleVmChange('ebsType', value)}
+        onChange={(value) => handleVmChange('ebsType', value)} // onVmChange가 전달됨
         options={ebsOptions}
       />
 
@@ -195,7 +209,7 @@ const EKSResourceFields = ({
         id="ebs-size-input"
         label="EBS 볼륨 크기 (GB)"
         value={localVM.ebsSize}
-        onChange={(value) => handleVmChange('ebsSize', value)}
+        onChange={(value) => handleVmChange('ebsSize', value)} // onVmChange가 전달됨
         onPaste={(e) => handlePaste(e, 'ebsSize')}
         placeholder="예: 50"
         hasError={errors.ebsSize}
@@ -209,11 +223,12 @@ const EKSResourceFields = ({
 const OnPremiseResourceFields = ({ 
   localResources, 
   errors, 
-  handleResourceChange,
+  handleResourceChange, // handleResourceChange는 이제 래퍼 함수 (onResourceChange)로 대체될 예정
   handlePaste
 }: {
   localResources: LocalResources;
   errors: ResourceErrors;
+  // handleResourceChange의 타입 변경: 래퍼 함수를 받도록 (value만)
   handleResourceChange: (field: keyof LocalResources, value: string) => void;
   handlePaste: (e: React.ClipboardEvent<HTMLInputElement>, field: string) => void;
 }) => (
@@ -222,7 +237,7 @@ const OnPremiseResourceFields = ({
       id="cpu-cores-input"
       label="CPU (cores)"
       value={localResources.cpu}
-      onChange={(value) => handleResourceChange('cpu', value)}
+      onChange={(value) => handleResourceChange('cpu', value)} // onResourceChange가 전달됨
       onPaste={(e) => handlePaste(e, 'cpu')}
       placeholder="예: 4"
       hasError={errors.cpu}
@@ -233,7 +248,7 @@ const OnPremiseResourceFields = ({
       id="ram-gb-input"
       label="RAM (GB)"
       value={localResources.ram}
-      onChange={(value) => handleResourceChange('ram', value)}
+      onChange={(value) => handleResourceChange('ram', value)} // onResourceChange가 전달됨
       onPaste={(e) => handlePaste(e, 'ram')}
       placeholder="예: 16"
       hasError={errors.ram}
@@ -244,7 +259,7 @@ const OnPremiseResourceFields = ({
       id="disk-gb-input"
       label="DISK (GB)"
       value={localResources.disk}
-      onChange={(value) => handleResourceChange('disk', value)}
+      onChange={(value) => handleResourceChange('disk', value)} // onResourceChange가 전달됨
       onPaste={(e) => handlePaste(e, 'disk')}
       placeholder="예: 100"
       hasError={errors.disk}
@@ -296,43 +311,61 @@ export default function Step3_Resources() {
     });
   }, [localVM, formData.vm, updateFormData]);
 
-  // 이벤트 핸들러들
-  const handleResourceChange = (field: keyof LocalResources, value: string) => {
-    const { isValid, sanitizedValue } = validateAndSanitizeInput(value);
-    setErrors(prev => ({ ...prev, [field]: !isValid && sanitizedValue !== '' }));
-    setLocalResources(prev => ({ ...prev, [field]: sanitizedValue }));
+  // ✅ 수정된 이벤트 핸들러들 - 유효성 검사 결과를 인자로 받음
+  const _handleResourceChange = (field: keyof LocalResources, value: string, isValid: boolean, hasParseError: boolean) => {
+    setErrors(prev => ({ ...prev, [field]: hasParseError || (!isValid && value !== '') }));
+    setLocalResources(prev => ({ ...prev, [field]: value })); // sanitizedValue가 이미 넘어오므로 그대로 사용
   };
 
-  const handleVmChange = (field: keyof LocalVM, value: string) => {
+  const _handleVmChange = (field: keyof LocalVM, value: string, isValid: boolean, hasParseError: boolean) => {
     if (field === 'ebsSize') {
-      const { isValid, sanitizedValue } = validateAndSanitizeInput(value);
-      setErrors(prev => ({ ...prev, ebsSize: !isValid && sanitizedValue !== '' }));
-      setLocalVM(prev => ({ ...prev, [field]: sanitizedValue }));
+      setErrors(prev => ({ ...prev, ebsSize: hasParseError || (!isValid && value !== '') }));
+      setLocalVM(prev => ({ ...prev, [field]: value })); // sanitizedValue가 이미 넘어오므로 그대로 사용
     } else {
       setLocalVM(prev => ({ ...prev, [field]: value }));
     }
   };
 
-  const handleNodeChange = (value: string) => {
-    const { isValid, sanitizedValue } = validateAndSanitizeInput(value);
-    setErrors(prev => ({ ...prev, node: !isValid && sanitizedValue !== '' }));
-    updateFormData('k8s', { ...formData.k8s, node: sanitizedValue });
+  const _handleNodeChange = (value: string, isValid: boolean, hasParseError: boolean) => {
+    setErrors(prev => ({ ...prev, node: hasParseError || (!isValid && value !== '') }));
+    updateFormData('k8s', { ...formData.k8s, node: value }); // sanitizedValue가 이미 넘어오므로 그대로 사용
   };
 
-  // ✅ 붙여넣기 이벤트 핸들러 - 숫자만 허용
+  // ✅ 변경된 onChange 핸들러들: validateAndSanitizeInput 호출 후 결과를 하위 핸들러에 전달
+  // 이 함수들은 NumberInput의 onChange prop에 직접 연결됩니다.
+  const onNodeChange = (value: string) => {
+    const { isValid, sanitizedValue, hasParseError } = validateAndSanitizeInput(value);
+    _handleNodeChange(sanitizedValue, isValid, hasParseError);
+  };
+
+  const onResourceChange = (field: keyof LocalResources, value: string) => {
+    const { isValid, sanitizedValue, hasParseError } = validateAndSanitizeInput(value);
+    _handleResourceChange(field, sanitizedValue, isValid, hasParseError);
+  };
+
+  const onVmChange = (field: keyof LocalVM, value: string) => {
+    if (field === 'ebsSize') { // EBS Size만 숫자 입력
+      const { isValid, sanitizedValue, hasParseError } = validateAndSanitizeInput(value);
+      _handleVmChange(field, sanitizedValue, isValid, hasParseError);
+    } else { // 그 외 VM 필드는 일반 문자열이므로 유효성 검사 필요 없음
+      _handleVmChange(field, value, true, false); // 유효한 것으로 간주
+    }
+  };
+
+  // ✅ 붙여넣기 이벤트 핸들러 - 숫자만 허용 (최종 수정)
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, field: string) => {
     e.preventDefault();
     const pastedText = e.clipboardData.getData('text');
-    const numericOnly = pastedText.replace(/\D/g, '');
     
-    if (numericOnly) {
-      if (field === 'node') {
-        handleNodeChange(numericOnly);
-      } else if (field === 'ebsSize') {
-        handleVmChange(field, numericOnly);
-      } else {
-        handleResourceChange(field as keyof LocalResources, numericOnly);
-      }
+    // 붙여넣기된 텍스트에 대해 한 번만 유효성 검사 수행
+    const { isValid, sanitizedValue, hasParseError } = validateAndSanitizeInput(pastedText);
+
+    if (field === 'node') {
+      _handleNodeChange(sanitizedValue, isValid, hasParseError); // 검사 결과를 그대로 전달
+    } else if (field === 'ebsSize') {
+      _handleVmChange(field, sanitizedValue, isValid, hasParseError); // 검사 결과를 그대로 전달
+    } else { // cpu, ram, disk
+      _handleResourceChange(field as keyof LocalResources, sanitizedValue, isValid, hasParseError); // 검사 결과를 그대로 전달
     }
   };
 
@@ -343,7 +376,7 @@ export default function Step3_Resources() {
           id="worker-nodes-input"
           label="Worker Node 수"
           value={formData.k8s?.node ?? ''}
-          onChange={handleNodeChange}
+          onChange={onNodeChange} // 변경된 onChange 핸들러 사용
           onPaste={(e) => handlePaste(e, 'node')}
           placeholder="예: 3"
           hasError={errors.node}
@@ -354,14 +387,14 @@ export default function Step3_Resources() {
           <EKSResourceFields 
             localVM={localVM} 
             errors={errors} 
-            handleVmChange={handleVmChange}
+            handleVmChange={onVmChange} // 변경된 onChange 핸들러 사용
             handlePaste={handlePaste}
           />
         ) : (
           <OnPremiseResourceFields 
             localResources={localResources} 
             errors={errors} 
-            handleResourceChange={handleResourceChange}
+            handleResourceChange={onResourceChange} // 변경된 onChange 핸들러 사용
             handlePaste={handlePaste}
           />
         )}
