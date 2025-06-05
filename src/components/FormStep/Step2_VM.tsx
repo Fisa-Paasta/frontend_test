@@ -1,3 +1,4 @@
+import React from 'react';
 import { useSurvey } from '@/context/SurveyContext';
 import { useState, useEffect } from 'react';
 import { VMConfig } from '@/types/survey';
@@ -13,14 +14,14 @@ export default function Step2_VM() {
   const [localVM, setLocalVM] = useState<VMConfig>({
     hostname: formData.vm?.hostname || '',
     username: formData.vm?.username || '',
-    environment: formData.vm?.environment || 'on-premise',
+    environment: (formData.vm?.environment || 'on-premise') as 'on-premise' | 'aws',
     ec2Type: formData.vm?.ec2Type || '',
     ebsType: formData.vm?.ebsType || '',
   });
 
   useEffect(() => {
     updateFormData('vm', localVM);
-  }, [localVM]);
+  }, [localVM, updateFormData]);
 
   const handleChange = (field: keyof VMConfig, value: string) => {
     if (field === 'hostname' || field === 'username') {
