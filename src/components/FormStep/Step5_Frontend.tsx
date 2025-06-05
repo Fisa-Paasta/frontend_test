@@ -1,10 +1,11 @@
+import React from 'react';
 import { useSurvey } from '@/context/SurveyContext';
-import { useState, useEffect } from 'react';
 import { FrontendItem } from '@/types/survey';
 import {
   Trash2Icon
 } from 'lucide-react';
 
+// 컴포넌트 외부로 이동: frontendOptions
 const frontendOptions: Record<string, string[]> = {
   react: ['19.1.0', '18.3.1', '17.0.2'],
   vue: ['3.5.13 (Latest)', '3.5.0'],
@@ -14,6 +15,7 @@ const frontendOptions: Record<string, string[]> = {
   typescript: ['5.4.5', '5.3.3', '4.9.5'],
 };
 
+// 컴포넌트 외부로 이동: frontendFrameworks
 const frontendFrameworks: {
   name: string;
   label: string;
@@ -29,61 +31,62 @@ const frontendFrameworks: {
 
 export default function Step5_Frontend() {
   const { formData, updateFormData } = useSurvey();
-  const [items, setItems] = useState<FrontendItem[]>(formData.frontendItems || []);
-  const [frontendDomain, setFrontendDomain] = useState<string>(formData.frontendDomain || '');
-  const [domainError, setDomainError] = useState(false);
+  
+  const items = formData.frontendItems || []; 
+  
+  const initialDomain = formData.frontendDomain || '';
+  // ✅ domainError의 초기값을 initialDomain에 따라 계산합니다.
+  const initialDomainError = initialDomain !== '' && !/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/.test(initialDomain);
 
-  useEffect(() => {
-    updateFormData('frontendItems', items);
+  const [frontendDomain, setFrontendDomain] = React.useState<string>(initialDomain);
+  const [domainError, setDomainError] = React.useState(initialDomainError); // ✅ 수정
+
+  // useEffect는 frontendDomain 변경만 추적하여 updateFormData를 호출합니다.
+  React.useEffect(() => {
     updateFormData('frontendDomain', frontendDomain);
-  }, [items, frontendDomain, updateFormData]);
-
-  // ✅ 개선된 프레임워크 클릭 핸들러
-  const handleFrameworkClick = (index: number, frameworkName: string) => {
-    const updated = [...items];
-    const currentFramework = updated[index].framework;
-    
-    // 이미 선택된 프레임워크를 다시 클릭하면 선택 해제
-    if (currentFramework === frameworkName) {
-      updated[index].framework = '';
-      updated[index].version = '';
-      console.log(`🔄 ${frameworkName} 선택 해제됨`);
-    } else {
-      // 새로운 프레임워크 선택
-      updated[index].framework = frameworkName;
-      updated[index].version = '';
-      console.log(`✅ ${frameworkName} 선택됨`);
-    }
-    
-    setItems(updated);
-  };
-
-  const handleChange = (index: number, field: 'framework' | 'version', value: string) => {
-    const updated = [...items];
-    updated[index][field] = value;
-    if (field === 'framework') updated[index].version = '';
-    setItems(updated);
-  };
-
-  const handleAdd = () => {
-    setItems([...items, { id: Date.now(), framework: '', version: '' }]);
-  };
-
-  // ✅ 수정된 삭제 핸들러 - 인덱스 기반에서 ID 기반으로 변경
-  const handleRemove = (targetId: number) => {
-    setItems(prevItems => prevItems.filter(item => item.id !== targetId));
-  };
+  }, [frontendDomain, updateFormData]);
 
   const handleDomainChange = (value: string) => {
     setFrontendDomain(value);
     setDomainError(value !== '' && !/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/.test(value));
   };
 
+  // handleFrameworkClick, handleAdd, handleRemove 함수들을 `updateFormData`를 사용하도록 수정
+  const handleFrameworkClick = (index: number, frameworkName: string) => {
+    const updatedItems = [...items];
+    const currentFramework = updatedItems[index].framework;
+    
+    if (currentFramework === frameworkName) {
+      updatedItems[index].framework = '';
+      updatedItems[index].version = '';
+    } else {
+      updatedItems[index].framework = frameworkName;
+      updatedItems[index].version = '';
+    }
+    
+    // setItems 대신 updateFormData를 호출하여 부모 Context의 상태를 업데이트합니다.
+    updateFormData('frontendItems', updatedItems); 
+  };
+
+  const handleChange = (index: number, field: 'framework' | 'version', value: string) => {
+    const updatedItems = [...items];
+    updatedItems[index][field] = value;
+    if (field === 'framework') updatedItems[index].version = '';
+    updateFormData('frontendItems', updatedItems);
+  };
+
+  const handleAdd = () => {
+    updateFormData('frontendItems', [...items, { id: Date.now(), framework: '', version: '' }]);
+  };
+
+  const handleRemove = (targetId: number) => {
+    updateFormData('frontendItems', items.filter(item => item.id !== targetId));
+  };
+
   return (
     <div className="space-y-4">
       {items.map((item, i) => (
         <div key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm space-y-4">
-          {/* ✅ 휴지통 버튼을 legend에 통합 */}
           <fieldset className="flex-1">
             <legend className="text-sm font-medium mb-3 flex items-center justify-between">
               <span>
@@ -97,7 +100,7 @@ export default function Step5_Frontend() {
                   className="text-red-600 text-lg hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 rounded p-1"
                   aria-label={`프론트엔드 항목 ${i + 1} 삭제`}
                 >
-                  <Trash2Icon color='black' size={18} />
+                  <Trash2Icon className="text-red-600 dark:text-red-400" size={18} />
                 </button>
               )}
             </legend>
@@ -125,7 +128,6 @@ export default function Step5_Frontend() {
               ))}
             </div>
 
-            {/* 버전 선택 */}
             {item.framework && (
               <div className="mt-4">
                 <label htmlFor={`version-select-${item.id}`} className="block mb-1 text-sm font-medium">
@@ -158,7 +160,7 @@ export default function Step5_Frontend() {
         + 프론트엔드 추가
       </button>
 
-      {/* 도메인 입력 */}
+      {/* formData.env가 'paas'일 때만 도메인 입력 필드를 렌더링합니다. */}
       {formData.env === 'paas' && (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
           <label htmlFor="frontend-domain-input" className="block mb-1 text-sm font-medium text-gray-900 dark:text-white">
