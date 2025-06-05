@@ -1,5 +1,6 @@
 import { useSurvey } from '@/context/SurveyContext';
 import { EnvType } from '@/types/survey';
+import React from 'react';
 
 export default function Step1_Env() {
   const { formData, updateFormData, setCurrentStep } = useSurvey();

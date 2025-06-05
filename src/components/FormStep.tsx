@@ -1,3 +1,4 @@
+import React from 'react';
 import { useSurvey } from '@/context/SurveyContext';
 import { useState } from 'react';
 import Step1_Env from './FormStep/Step1_Env';
@@ -15,6 +16,7 @@ import InformationModal from './InformationModal';
 import { useSubmitted } from '@/context/SubmittedContext';
 import { SurveyContextType } from '@/types/survey';
 import { useNavigate } from 'react-router-dom';
+
 
 // 검증 로직을 별도 함수들로 분리하여 복잡도 감소
 const validateStep0 = (formData: any): boolean => {
@@ -305,8 +307,7 @@ export default function FormStep() {
           onSubmit={() => {
             setShowInfoModal(false);
             setShowConfirmModal(true);
-          }}
-        />
+          } } isOpen={false} title={''} message={''} icon={'error'}        />
       )}
 
       {showConfirmModal && (
