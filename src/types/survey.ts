@@ -1,3 +1,5 @@
+import React from 'react';
+
 // ───── 1. 공통 타입 ─────
 export type EnvType = 'iaas' | 'paas' | '';
 
@@ -32,12 +34,12 @@ export interface VMConfig {
 }
 
 // ───── 2. Step2 - K8s (PaaS에서만 사용) ─────
-export type OrchestrationType = 'kubernetes' | 'amazon_eks' | 'google_gke' | 'azure_aks' | '';
+export type OrchestrationType = '' | 'kubernetes' | 'amazon_eks' | 'google_gke' | 'azure_aks';  // '' 추가
 export interface K8sConfig {
-  type: OrchestrationType;
+  type: OrchestrationType;  // 빈 문자열을 포함하는 OrchestrationType으로 변경
   version: string;
-  node: string;         // Worker Node 수
-  namespace: string;    // Namespace Prefix
+  node: string;
+  namespace: string;
 }
 
 // ───── 3. Step5 - Frontend ─────
