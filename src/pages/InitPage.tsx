@@ -249,6 +249,7 @@ export default function InitPage() {
                   value={form.department}
                   onChange={handleChange}
                   className="bg-transparent outline-none text-base w-full placeholder-gray-400 text-foreground-light dark:text-white"
+                  aria-label="부서를 선택하세요"
                 >
                   <option value="" disabled>부서를 선택하세요</option>
 
