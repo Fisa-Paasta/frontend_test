@@ -1,14 +1,21 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import React from 'react'
+import React from 'react';
 import {
   SurveyContextType,
   FormDataType,
   K8sConfig,
   VMConfig,
-  OSConfig
+  OSConfig,
+  FrontendItem,
+  BackendItem,
+  WebServerItem,
+  DBItem,
+  BackendLanguage,
+  BackendFramework
 } from '@/types/survey';
 
-const SurveyContext = createContext<SurveyContextType | undefined>(undefined);
+// ✅ SurveyContext를 export 합니다.
+export const SurveyContext = createContext<SurveyContextType | undefined>(undefined);
 
 export function SurveyProvider({ children }: { children: ReactNode }) {
   const defaultK8s: K8sConfig = {
@@ -38,11 +45,13 @@ export function SurveyProvider({ children }: { children: ReactNode }) {
     resources: { cpu: '', ram: '', disk: '' },
     os: defaultOS,
     frontendItems: [{ id: Date.now(), framework: '', version: '' }],
-    frontendDomain: '',
+    frontendDomain: '', // <<<<< 여기에 이 줄을 추가합니다.
     backendItems: [{
       id: Date.now() + 1,
-      language: '', languageVersion: '',
-      framework: '', frameworkVersion: ''
+      language: '' as BackendLanguage,
+      languageVersion: '',
+      framework: '' as BackendFramework,
+      frameworkVersion: ''
     }],
     apiDomain: '',
     apiPaths: [''],
@@ -84,7 +93,7 @@ export function SurveyProvider({ children }: { children: ReactNode }) {
 
   const updateFormData = <K extends keyof FormDataType>(key: K, value: FormDataType[K]) => {
     setFormData(prev => {
-      if (prev[key] === value) return prev;
+      if (prev[key] === value) return prev; 
       return { ...prev, [key]: value };
     });
   };

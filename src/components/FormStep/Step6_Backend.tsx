@@ -1,3 +1,4 @@
+import React from 'react';
 import { useSurvey } from '@/context/SurveyContext';
 import { useState, useEffect } from 'react';
 import { BackendItem, BackendLanguage, BackendFramework } from '@/types/survey';
@@ -53,10 +54,27 @@ const frameworkCards: Record<string, { name: string; label: string; src: string 
 
 export default function Step6_Backend() {
   const { formData, updateFormData } = useSurvey();
-  const [items, setItems] = useState<BackendItem[]>(formData.backendItems || []);
-  const [apiDomain, setApiDomain] = useState(formData.apiDomain || '');
-  const [apiPaths, setApiPaths] = useState(formData.apiPaths || ['']);
-  const [domainError, setDomainError] = useState(false);
+  
+  // `formData.backendItems`가 없을 경우 기본 항목 하나를 포함하도록 수정
+  const initialBackendItems = formData.backendItems && formData.backendItems.length > 0
+    ? formData.backendItems
+    : [{
+        id: Date.now(),
+        language: '' as BackendLanguage, // <-- 여기에 타입 단언 추가
+        languageVersion: '',
+        framework: '' as BackendFramework, // <-- 여기에 타입 단언 추가
+        frameworkVersion: ''
+      }];
+
+      const [items, setItems] = useState<BackendItem[]>(initialBackendItems);
+  
+  const initialApiDomain = formData.apiDomain || '';
+  // 초기 domainError 상태 계산
+  const initialDomainError = initialApiDomain !== '' && !/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/.test(initialApiDomain);
+
+  const [apiDomain, setApiDomain] = useState(initialApiDomain);
+  const [apiPaths, setApiPaths] = useState(formData.apiPaths || ['']); // 기본적으로 하나의 빈 경로 포함
+  const [domainError, setDomainError] = useState(initialDomainError); // ✅ 초기값 수정
 
   useEffect(() => {
     updateFormData('backendItems', items);
@@ -64,48 +82,38 @@ export default function Step6_Backend() {
     updateFormData('apiPaths', apiPaths);
   }, [items, apiDomain, apiPaths, updateFormData]);
 
-  // ✅ 개선된 언어 클릭 핸들러
   const handleLanguageClick = (index: number, languageName: string) => {
     const updated = [...items];
     const item = { ...updated[index] };
     const currentLanguage = item.language;
 
-    // 이미 선택된 언어를 다시 클릭하면 선택 해제
     if (currentLanguage === languageName) {
       item.language = '';
       item.languageVersion = '';
       item.framework = '';
       item.frameworkVersion = '';
-      console.log(`🔄 ${languageName} 선택 해제됨`);
     } else {
-      // 새로운 언어 선택
       item.language = languageName as BackendLanguage;
       item.languageVersion = '';
       item.framework = '';
       item.frameworkVersion = '';
-      console.log(`✅ ${languageName} 선택됨`);
     }
 
     updated[index] = item;
     setItems(updated);
   };
 
-  // ✅ 개선된 프레임워크 클릭 핸들러
   const handleFrameworkClick = (index: number, frameworkName: string) => {
     const updated = [...items];
     const item = { ...updated[index] };
     const currentFramework = item.framework;
 
-    // 이미 선택된 프레임워크를 다시 클릭하면 선택 해제
     if (currentFramework === frameworkName) {
       item.framework = '';
       item.frameworkVersion = '';
-      console.log(`🔄 ${frameworkName} 선택 해제됨`);
     } else {
-      // 새로운 프레임워크 선택
       item.framework = frameworkName as BackendFramework;
       item.frameworkVersion = '';
-      console.log(`✅ ${frameworkName} 선택됨`);
     }
 
     updated[index] = item;
@@ -121,11 +129,16 @@ export default function Step6_Backend() {
   const handleAdd = () => {
     setItems([
       ...items,
-      { id: Date.now(), language: '', languageVersion: '', framework: '', frameworkVersion: '' },
+      {
+        id: Date.now(),
+        language: '' as BackendLanguage, // <-- 여기에 타입 단언 추가
+        languageVersion: '',
+        framework: '' as BackendFramework, // <-- 여기에 타입 단언 추가
+        frameworkVersion: ''
+      },
     ]);
   };
 
-  // ✅ ID 기반 삭제로 수정
   const handleRemove = (targetId: number) => {
     setItems(prevItems => prevItems.filter(item => item.id !== targetId));
   };
@@ -145,29 +158,34 @@ export default function Step6_Backend() {
   
   const handleRemovePath = (pathIndex: number) => {
     const updated = [...apiPaths];
-    updated.splice(pathIndex, 1);
-    setApiPaths(updated);
+    // 최소 1개의 API 경로를 유지하도록 조건 추가 (선택 사항)
+    if (updated.length > 1) { 
+      updated.splice(pathIndex, 1);
+      setApiPaths(updated);
+    } else {
+        // 단일 경로만 있을 경우, 빈 문자열로 초기화
+        setApiPaths(['']);
+    }
   };
 
   return (
     <div className="space-y-4">
       {items.map((item, index) => (
         <div key={`backend-item-${item.id}`} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm space-y-6">
-          {/* ✅ 휴지통 버튼을 언어 선택 legend에 통합 */}
           <fieldset>
             <legend className="text-sm font-medium mb-3 flex items-center justify-between">
               <span>
                 백엔드 언어 선택 {index + 1}
                 <span className="text-xs text-gray-500 ml-2">(선택된 항목을 다시 클릭하면 해제됩니다)</span>
               </span>
-              {items.length > 1 && (
+              {items.length > 1 && ( // 항목이 1개 초과일 때만 삭제 버튼 표시
                 <button
                   type="button"
                   onClick={() => handleRemove(item.id)}
                   className="text-red-600 text-lg hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 rounded p-1"
                   aria-label={`백엔드 항목 ${index + 1} 삭제`}
                 >
-                  <Trash2Icon color='black' size={18} />
+                  <Trash2Icon size={18} /> {/* ✅ color 속성 제거 (부모 클래스 상속) */}
                 </button>
               )}
             </legend>
@@ -185,7 +203,7 @@ export default function Step6_Backend() {
                   aria-pressed={item.language === lang.name}
                   aria-label={`${lang.label} ${item.language === lang.name ? '선택됨 (클릭하여 해제)' : '선택하기'}`}
                 >
-                  <img src={lang.src} alt="" className="h-14 mx-auto object-contain mb-2" />
+                  <img src={lang.src} alt={`${lang.label} 로고`} className="h-14 mx-auto object-contain mb-2" /> {/* ✅ alt 속성 추가 */}
                   <span className="text-sm font-semibold">{lang.label}</span>
                 </button>
               ))}
@@ -232,7 +250,7 @@ export default function Step6_Backend() {
                     aria-pressed={item.framework === fw.name}
                     aria-label={`${fw.label} ${item.framework === fw.name ? '선택됨 (클릭하여 해제)' : '선택하기'}`}
                   >
-                    <img src={fw.src} alt="" className="h-14 mx-auto object-contain mb-2" />
+                    <img src={fw.src} alt={`${fw.label} 로고`} className="h-14 mx-auto object-contain mb-2" /> {/* ✅ alt 속성 추가 */}
                     <span className="text-sm font-semibold">{fw.label}</span>
                   </button>
                 ))}
@@ -298,7 +316,6 @@ export default function Step6_Backend() {
           <fieldset className="space-y-2">
             <legend className="block mb-1 text-sm font-medium text-gray-900 dark:text-white">API Prefix Path</legend>
             {apiPaths.map((path, pathIndex) => {
-              // ✅ 소나큐브 수정: 안정적인 고유 키 생성 (pathIndex만 사용)
               const stableKey = `api-path-${pathIndex}`;
               return (
                 <div key={stableKey} className="flex items-center gap-2">
@@ -313,7 +330,7 @@ export default function Step6_Backend() {
                     autoComplete="off"
                     spellCheck="false"
                   />
-                  {apiPaths.length > 1 && (
+                  {apiPaths.length > 1 && ( // 경로가 1개 초과일 때만 삭제 버튼 표시
                     <button
                       type="button"
                       onClick={() => handleRemovePath(pathIndex)}
