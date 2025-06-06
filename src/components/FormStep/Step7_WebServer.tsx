@@ -1,3 +1,4 @@
+import React from 'react';
 import { useSurvey } from '@/context/SurveyContext';
 import { useState, useEffect } from 'react';
 import { WebServerItem, WebServerType } from '@/types/survey';
@@ -29,8 +30,11 @@ export default function Step7_WebServer() {
   );
 
   useEffect(() => {
-    updateFormData('webServerItems', webServerItems);
-  }, [webServerItems, updateFormData]);
+    // 현재 webServerItems와 formData.webServerItems가 다를 경우에만 updateFormData 호출
+    if (JSON.stringify(webServerItems) !== JSON.stringify(formData.webServerItems)) {
+        updateFormData('webServerItems', webServerItems);
+    }
+  }, [webServerItems, updateFormData, formData.webServerItems]);
 
   // ✅ 개선된 서버 클릭 핸들러
   const handleServerClick = (id: number, serverName: string) => {
@@ -63,7 +67,7 @@ export default function Step7_WebServer() {
 
   // ✅ ID 기반 삭제로 수정
   const removeWebServerItem = (targetId: number) => {
-    if (webServerItems.length <= 1) return;
+    if (webServerItems.length <= 1) return; // 마지막 항목은 삭제 불가
     setWebServerItems((prev) => prev.filter((item) => item.id !== targetId));
   };
 
@@ -80,6 +84,8 @@ export default function Step7_WebServer() {
       {webServerItems.map((item, index) => (
         <div
           key={item.id}
+          // ⭐ 여기에 data-testid 추가 ⭐
+          data-testid={`webserver-item-${item.id}`} 
           className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm space-y-4"
         >
           {/* ✅ 휴지통 버튼을 legend에 통합 */}
@@ -89,7 +95,7 @@ export default function Step7_WebServer() {
                 웹서버 선택 {index + 1}
                 <span className="text-xs text-gray-500 ml-2">(선택된 항목을 다시 클릭하면 해제됩니다)</span>
               </span>
-              {webServerItems.length > 1 && (
+              {webServerItems.length > 1 && ( // 여기 조건이 중요합니다!
                 <button
                   type="button"
                   onClick={() => removeWebServerItem(item.id)}
