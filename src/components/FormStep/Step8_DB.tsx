@@ -1,354 +1,249 @@
+// src/components/FormStep/Step8_DB.tsx
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSurvey } from '@/context/SurveyContext';
-import { useState, useEffect } from 'react';
 import { DBItem, DBType, DBName } from '@/types/survey';
-import {
-  Trash2Icon
-} from 'lucide-react';
 
-type ValidDBType = Exclude<DBType, ''>;
-
-const dbTypeCards: { value: ValidDBType; label: string }[] = [
-  { value: 'relational', label: 'Relational DB' },
-  { value: 'nosql', label: 'NoSQL DB' }
+// DB 타입 및 이름 목록 (예시 데이터)
+const DB_TYPES: { type: DBType; label: string }[] = [
+  { type: 'relational', label: 'Relational DB' },
+  { type: 'nosql', label: 'NoSQL DB' },
 ];
 
-const dbOptions: Record<ValidDBType, DBName[]> = {
-  relational: ['mysql', 'postgresql', 'mariadb', 'oracle'],
-  nosql: ['mongodb', 'redis', 'elasticsearch', 'cassandra'],
+const DB_NAMES: Record<DBType, { name: DBName; label: string; versions: string[] }[]> = {
+  relational: [
+    { name: 'mysql', label: 'MySQL', versions: ['8.0.36 (LTS)', '8.0.35', '8.0.34'] },
+    { name: 'postgresql', label: 'PostgreSQL', versions: ['16.2', '16.1', '15.6'] },
+    { name: 'oracle', label: 'Oracle', versions: ['19c', '18c', '12c'] },
+  ],
+  nosql: [
+    { name: 'mongodb', label: 'MongoDB', versions: ['7.0', '6.0', '5.0'] },
+    { name: 'redis', label: 'Redis', versions: ['7.2.4', '7.2.3', '7.0.15'] },
+    { name: 'cassandra', label: 'Cassandra', versions: ['4.1.3', '4.0.11', '3.11.16'] },
+  ],
+  '': [], // 빈 문자열 타입에 대한 항목 추가
 };
 
-const dbLabels: Record<DBName, string> = {
-  mysql: 'MySQL',
-  postgresql: 'PostgreSQL',
-  mariadb: 'MariaDB',
-  oracle: 'Oracle Database',
-  mongodb: 'MongoDB',
-  redis: 'Redis',
-  elasticsearch: 'Elasticsearch',
-  cassandra: 'Cassandra',
-};
-
-const dbImages: Record<DBName, string> = {
-  mysql: '/img/db/mysql.svg',
-  postgresql: '/img/db/postgresql.svg',
-  mariadb: '/img/db/maria.svg',
-  oracle: '/img/db/oracle.svg',
-  mongodb: '/img/db/mongo.svg',
-  redis: '/img/db/redis.svg',
-  elasticsearch: '/img/db/elasticsearch.svg',
-  cassandra: '/img/db/cassandra.svg',
-};
-
-const dbVersions: Record<DBName, string[]> = {
-  mysql: ['8.4.0', '8.0.36 (LTS)', '5.7.44 (Legacy)'],
-  postgresql: ['16.1', '15.5', '14.10'],
-  mariadb: ['11.2.2', '10.11.6 (LTS)', '10.6.17 (LTS)'],
-  oracle: ['23c (Free)', '21c', '19c (LTS)'],
-  mongodb: ['7.0.5', '6.0.12', '5.0.23'],
-  redis: ['7.2.4', '7.0.14', '6.2.14'],
-  elasticsearch: ['8.12.1', '8.11.4', '7.17.16'],
-  cassandra: ['4.1.3', '4.0.12', '3.11.16'],
-};
-
-// 검증 함수 분리
-const validateField = (field: keyof DBItem, value: string): boolean => {
-  if (field === 'size') {
-    const n = parseInt(value, 10);
-    return !isNaN(n) && n > 0;
+// 깊은 비교 (deep comparison) 함수 (재사용을 위해 외부로 빼둠)
+// ID는 비교에서 제외합니다. ID는 React의 key prop에만 사용되어야 하며,
+// 데이터의 논리적 동일성을 판단할 때는 사용되지 않아야 합니다.
+const areDbItemsEqual = (arr1: DBItem[], arr2: DBItem[]): boolean => {
+  if (arr1.length !== arr2.length) return false;
+  for (let i = 0; i < arr1.length; i++) {
+    const item1 = arr1[i];
+    const item2 = arr2[i];
+    if (
+      item1.type !== item2.type ||
+      item1.name !== item2.name ||
+      item1.version !== item2.version ||
+      item1.size !== item2.size
+    ) {
+      return false;
+    }
   }
-  return !!value;
+  return true;
 };
 
-// 에러 체크 함수 분리
-const hasError = (errors: Record<string, Record<string, boolean>>, id: number, field: keyof DBItem): boolean => {
-  return errors[id?.toString()]?.[field] === true;
-};
-
-// DB 타입 섹션 컴포넌트
-interface DBTypeSectionProps {
-  item: DBItem;
-  index: number;
-  onTypeClick: (id: number, value: string) => void;
-  onRemove: (targetId: number) => void;
-  itemsLength: number;
-}
-
-const DBTypeSection = ({ item, index, onTypeClick, onRemove, itemsLength }: DBTypeSectionProps) => (
-  <div className="space-y-2">
-    <fieldset>
-      <legend className="text-sm font-medium mb-2 flex items-center justify-between">
-        <span>
-          데이터베이스 타입 선택 {index + 1}
-          <span className="text-xs text-gray-500 ml-2">(선택된 항목을 다시 클릭하면 해제됩니다)</span>
-        </span>
-        {itemsLength > 1 && (
-          <button
-            type="button"
-            onClick={() => onRemove(item.id)}
-            className="text-red-600 text-lg hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 rounded p-1"
-            aria-label={`데이터베이스 항목 ${index + 1} 삭제`}
-          >
-            <Trash2Icon color='black' size={18} />
-          </button>
-        )}
-      </legend>
-      <div className="grid grid-cols-2 gap-4">
-        {dbTypeCards.map((type) => (
-          <button
-            key={type.value}
-            type="button"
-            onClick={() => onTypeClick(item.id, type.value)}
-            className={`p-3 rounded-md border-2 text-center cursor-pointer transition shadow-sm block w-full
-              ${item.type === type.value
-                ? 'border-violet-500 bg-violet-600 text-white'
-                : 'border-gray-300 bg-white hover:bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-white'}
-            `}
-            aria-pressed={item.type === type.value}
-            aria-label={`${type.label} ${item.type === type.value ? '선택됨 (클릭하여 해제)' : '선택하기'}`}
-          >
-            <span className="text-sm font-semibold">{type.label}</span>
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  </div>
-);
-
-// DB 선택 섹션 컴포넌트
-interface DBSelectionSectionProps {
-  item: DBItem;
-  onNameClick: (id: number, value: string) => void;
-}
-
-const DBSelectionSection = ({ item, onNameClick }: DBSelectionSectionProps) => {
-  if (!item.type) return null;
-  
-  const availableDBs = dbOptions[item.type as ValidDBType] ?? [];
-  
-  return (
-    <div className="space-y-2">
-      <fieldset>
-        <legend className="text-sm font-medium mb-2">
-          {item.type} 데이터베이스 선택
-          {' '}
-          <span className="text-xs text-gray-500 ml-2">(선택된 항목을 다시 클릭하면 해제됩니다)</span>
-        </legend>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {availableDBs.map((db) => (
-            <button
-              key={db}
-              type="button"
-              onClick={() => onNameClick(item.id, db)}
-              className={`p-3 rounded-md border-2 text-center cursor-pointer transition shadow-sm block w-full
-                ${item.name === db
-                  ? 'border-violet-500 bg-violet-600 text-white'
-                  : 'border-gray-300 bg-white hover:bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-white'}
-              `}
-              aria-pressed={item.name === db}
-              aria-label={`${dbLabels[db]} ${item.name === db ? '선택됨 (클릭하여 해제)' : '선택하기'}`}
-            >
-              <img
-                src={dbImages[db]}
-                alt={`${dbLabels[db]} 로고`}
-                className="h-14 mx-auto object-contain mb-2"
-              />
-              <span className="text-sm font-semibold">{dbLabels[db]}</span>
-            </button>
-          ))}
-        </div>
-      </fieldset>
-    </div>
-  );
-};
-
-// 버전 및 크기 섹션 컴포넌트
-interface VersionAndSizeSectionProps {
-  item: DBItem;
-  errors: Record<string, Record<string, boolean>>;
-  onChange: (id: number, field: keyof DBItem, value: string) => void;
-}
-
-const VersionAndSizeSection = ({ item, errors, onChange }: VersionAndSizeSectionProps) => {
-  if (!item.name) return null;
-  
-  const versions = dbVersions[item.name] ?? [];
-  
-  return (
-    <div className="space-y-4">
-      <div>
-        <label htmlFor={`db-version-select-${item.id}`} className="block mb-1 text-sm font-medium">
-          {dbLabels[item.name] ?? ''} 버전 선택
-        </label>
-        <select
-          id={`db-version-select-${item.id}`}
-          value={item.version}
-          onChange={(e) => onChange(item.id, 'version', e.target.value)}
-          className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-input-dark dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 ${
-            hasError(errors, item.id, 'version') ? 'border-red-500' : ''
-          }`}
-          aria-describedby={hasError(errors, item.id, 'version') ? `version-error-${item.id}` : undefined}
-        >
-          <option value="">버전 선택</option>
-          {versions.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
-        {hasError(errors, item.id, 'version') && (
-          <p id={`version-error-${item.id}`} className="text-red-500 text-xs mt-1" role="alert">
-            버전을 선택해주세요.
-          </p>
-        )}
-      </div>
-
-      <div>
-        <label htmlFor={`db-size-input-${item.id}`} className="block mb-1 text-sm font-medium">
-          DB 크기 (GB)
-        </label>
-        <input
-          id={`db-size-input-${item.id}`}
-          type="number"
-          min="1"
-          value={item.size}
-          onChange={(e) => onChange(item.id, 'size', e.target.value)}
-          placeholder="DB Size (GB)"
-          className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-input-dark dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 ${
-            hasError(errors, item.id, 'size') ? 'border-red-500' : ''
-          }`}
-          aria-describedby={hasError(errors, item.id, 'size') ? `size-error-${item.id}` : undefined}
-        />
-        {hasError(errors, item.id, 'size') && (
-          <p id={`size-error-${item.id}`} className="text-red-500 text-xs mt-1" role="alert">
-            유효한 크기를 입력해주세요.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default function Step8_DB() {
+const Step8_DB: React.FC = () => {
   const { formData, updateFormData } = useSurvey();
 
-  const [dbItems, setDbItems] = useState<DBItem[]>(() =>
-    formData.dbItems?.length
+  const [dbItems, setDbItems] = useState<DBItem[]>(
+    formData.dbItems && formData.dbItems.length > 0
       ? formData.dbItems
-      : [{ id: Date.now(), type: '', name: '', version: '', size: '' }]
+      : [{ id: Date.now(), type: '' as DBType, name: '' as DBName, version: '', size: '' }]
   );
 
-  const [errors, setErrors] = useState<Record<string, Record<string, boolean>>>({});
-
   useEffect(() => {
-    updateFormData('dbItems', dbItems);
-  }, [dbItems, updateFormData]);
+    // 현재 dbItems가 formData.dbItems와 다를 경우에만 updateFormData 호출
+    // 이렇게 함으로써 불필요한 updateFormData 호출을 방지하고,
+    // 특히 formData가 이미 채워져 있을 때 초기 렌더링 시 호출되지 않도록 합니다.
+    if (!areDbItemsEqual(dbItems, formData.dbItems || [])) {
+      updateFormData('dbItems', dbItems);
+    }
+  }, [dbItems, formData.dbItems, updateFormData]);
 
-  // ✅ 개선된 타입 클릭 핸들러
-  const handleTypeClick = (id: number, typeValue: string) => {
-    setDbItems((prev) =>
-      prev.map((item) => {
+  const handleDbTypeChange = useCallback((id: number, clickedType: DBType) => {
+    setDbItems(prevItems =>
+      prevItems.map(item => {
         if (item.id === id) {
-          const currentType = item.type;
-          
-          // 이미 선택된 타입을 다시 클릭하면 선택 해제
-          if (currentType === typeValue) {
-            console.log(`🔄 ${typeValue} 선택 해제됨`);
-            return { ...item, type: '' as DBType, name: '' as DBName, version: '', size: '' };
-          } else {
-            // 새로운 타입 선택
-            console.log(`✅ ${typeValue} 선택됨`);
-            return { ...item, type: typeValue as DBType, name: '' as DBName, version: '', size: '' };
-          }
+          const newType = item.type === clickedType ? ('' as DBType) : clickedType;
+          return { ...item, type: newType, name: '' as DBName, version: '', size: '' };
         }
         return item;
       })
     );
-  };
+  }, []);
 
-  // ✅ 개선된 이름 클릭 핸들러
-  const handleNameClick = (id: number, nameValue: string) => {
-    setDbItems((prev) =>
-      prev.map((item) => {
+  const handleDbNameChange = useCallback((id: number, clickedName: DBName) => {
+    setDbItems(prevItems =>
+      prevItems.map(item => {
         if (item.id === id) {
-          const currentName = item.name;
-          
-          // 이미 선택된 이름을 다시 클릭하면 선택 해제
-          if (currentName === nameValue) {
-            console.log(`🔄 ${nameValue} 선택 해제됨`);
-            return { ...item, name: '' as DBName, version: '', size: '' };
-          } else {
-            // 새로운 이름 선택
-            console.log(`✅ ${nameValue} 선택됨`);
-            return { ...item, name: nameValue as DBName, version: '', size: '' };
-          }
+          const newName = item.name === clickedName ? ('' as DBName) : clickedName;
+          return { ...item, name: newName, version: '', size: '' };
         }
         return item;
       })
     );
-  };
+  }, []);
 
-  const addDbItem = () => {
-    setDbItems((prev) => [
-      ...prev,
-      { id: Date.now(), type: '', name: '', version: '', size: '' }
+  const handleDbVersionChange = useCallback((id: number, e: React.ChangeEvent<HTMLSelectElement>) => {
+    const version = e.target.value;
+    setDbItems(prevItems =>
+      prevItems.map(item =>
+        item.id === id ? { ...item, version } : item
+      )
+    );
+  }, []);
+
+  const handleDbSizeChange = useCallback((id: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const size = e.target.value;
+    setDbItems(prevItems =>
+      prevItems.map(item =>
+        item.id === id ? { ...item, size } : item
+      )
+    );
+  }, []);
+
+  const addDbItem = useCallback(() => {
+    setDbItems(prevItems => [
+      ...prevItems,
+      { id: Date.now(), type: '' as DBType, name: '' as DBName, version: '', size: '' }
     ]);
-  };
+  }, []);
 
-  // ✅ ID 기반 삭제로 수정
-  const removeDbItem = (targetId: number) => {
-    if (dbItems.length <= 1) return;
-    setDbItems((prev) => prev.filter((item) => item.id !== targetId));
-    setErrors((prev) => {
-      const copy = { ...prev };
-      delete copy[targetId.toString()];
-      return copy;
+  const removeDbItem = useCallback((id: number) => {
+    setDbItems(prevItems => {
+      if (prevItems.length === 1) {
+        return prevItems; // 마지막 항목은 삭제할 수 없음
+      }
+      return prevItems.filter(item => item.id !== id);
     });
-  };
+  }, []);
 
-  const handleChange = (id: number, field: keyof DBItem, value: string) => {
-    const idStr = id.toString();
-    const isValid = validateField(field, value);
+  const getDbNamesForType = useCallback((type: DBType) => {
+    return DB_NAMES[type] || [];
+  }, []);
 
-    setErrors((prev) => ({
-      ...prev,
-      [idStr]: { ...prev[idStr], [field]: !isValid }
-    }));
-
-    setDbItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          return { ...item, [field]: value };
-        }
-        return item;
-      })
-    );
-  };
+  const getDbVersionsForName = useCallback((type: DBType, name: DBName) => {
+    const db = DB_NAMES[type]?.find(db => db.name === name);
+    return db ? db.versions : [];
+  }, []);
 
   return (
-    <div className="space-y-4">
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-4">데이터베이스 정보</h2>
       {dbItems.map((item, index) => (
-        <div
-          key={`db-item-${item.id}`}
-          className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm space-y-4"
-        >
-          <DBTypeSection 
-            item={item} 
-            index={index}
-            onTypeClick={handleTypeClick} 
-            onRemove={removeDbItem}
-            itemsLength={dbItems.length}
-          />
-          <DBSelectionSection item={item} onNameClick={handleNameClick} />
-          <VersionAndSizeSection item={item} errors={errors} onChange={handleChange} />
+        <div key={item.id} data-testid={`db-item-${item.id}`} className="p-4 border rounded-lg mb-4 relative">
+          <h3 className="text-lg font-semibold mb-3">데이터베이스 항목 {index + 1}</h3>
+          {dbItems.length > 1 && (
+            <button
+              type="button"
+              className="absolute top-4 right-4 p-2 text-red-500 hover:bg-gray-100 rounded-full"
+              onClick={() => removeDbItem(item.id)}
+              aria-label={`데이터베이스 항목 ${index + 1} 삭제`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-trash-2">
+                <path d="M3 6h18"></path>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                <line x1="10" x2="10" y1="11" y2="17"></line>
+                <line x1="14" x2="14" y1="11" y2="17"></line>
+              </svg>
+            </button>
+          )}
+
+          <div className="mb-4">
+            {/* 레이블이 버튼 그룹과 직접 연결되지 않으므로 for 속성 제거 */}
+            {/* 시맨틱적으로 label은 input, select, textarea 등과 연결되어야 합니다. */}
+            <span className="block text-sm font-medium text-gray-700 mb-1" id={`db-type-label-${item.id}`}>
+              데이터베이스 타입 선택 {index + 1}
+            </span>
+            <div className="flex space-x-2" role="group" aria-labelledby={`db-type-label-${item.id}`}>
+              {DB_TYPES.map(dbType => (
+                <button
+                  key={dbType.type}
+                  type="button"
+                  className={`px-4 py-2 rounded-md ${item.type === dbType.type ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}`}
+                  onClick={() => handleDbTypeChange(item.id, dbType.type)}
+                  aria-pressed={item.type === dbType.type}
+                >
+                  {dbType.label} {item.type === dbType.type && '(선택됨)'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {item.type && (
+            <div className="mb-4">
+              <span className="block text-sm font-medium text-gray-700 mb-1" id={`db-name-label-${item.id}`}>
+                {item.type} 데이터베이스 선택
+              </span>
+              <div className="flex flex-wrap gap-2" role="group" aria-labelledby={`db-name-label-${item.id}`}>
+                {getDbNamesForType(item.type).map(dbName => (
+                  <button
+                    key={dbName.name}
+                    type="button"
+                    className={`px-4 py-2 rounded-md ${item.name === dbName.name ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}`}
+                    onClick={() => handleDbNameChange(item.id, dbName.name)}
+                    aria-pressed={item.name === dbName.name}
+                  >
+                    {dbName.label} {item.name === dbName.name && '(선택됨)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {item.name && (
+            <>
+              <div className="mb-4">
+                <label htmlFor={`db-version-${item.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                  {DB_NAMES[item.type]?.find(db => db.name === item.name)?.label} 버전 선택
+                </label>
+                <select
+                  id={`db-version-${item.id}`}
+                  value={item.version}
+                  onChange={(e) => handleDbVersionChange(item.id, e)}
+                  className="w-[180px] p-2 border rounded-md"
+                >
+                  <option value="" disabled>버전 선택</option>
+                  {getDbVersionsForName(item.type, item.name).map(version => (
+                    <option key={version} value={version}>{version}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label htmlFor={`db-size-input-${item.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                  DB 크기 (GB)
+                </label>
+                <input
+                  id={`db-size-input-${item.id}`}
+                  type="number"
+                  value={item.size}
+                  onChange={(e) => handleDbSizeChange(item.id, e)}
+                  placeholder="예: 100"
+                  min="1"
+                  className="w-40 p-2 border rounded-md"
+                />
+                {item.size !== '' && parseInt(item.size) <= 0 && (
+                  <p className="text-red-500 text-sm mt-1">유효한 크기를 입력해주세요.</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       ))}
 
       <button
         type="button"
         onClick={addDbItem}
-        className="mt-2 px-3 py-1 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-        aria-label="새 데이터베이스 항목 추가"
+        className="mt-4 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
       >
-        + 데이터베이스 추가
+        + 새 데이터베이스 항목 추가
       </button>
     </div>
   );
-}
+};
+
+export default Step8_DB;
